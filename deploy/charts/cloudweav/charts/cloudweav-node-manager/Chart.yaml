@@ -1,0 +1,8 @@
+apiVersion: v2
+appVersion: v0.3.1
+description: A Helm chart for Cloudweav Node Manager
+maintainers:
+- name: cloudweav
+name: cloudweav-node-manager
+type: application
+version: 0.3.1

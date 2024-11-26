@@ -1,0 +1,126 @@
+package indexeres
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+
+	snapshotv1 "github.com/kubernetes-csi/external-snapshotter/client/v4/apis/volumesnapshot/v1"
+	lhv1beta2 "github.com/longhorn/longhorn-manager/k8s/pkg/apis/longhorn/v1beta2"
+	"github.com/rancher/steve/pkg/server"
+	corev1 "k8s.io/api/core/v1"
+
+	cloudweavv1 "github.com/cloudweav/cloudweav/pkg/apis/cloudweavhci.io/v1beta1"
+	"github.com/cloudweav/cloudweav/pkg/config"
+	"github.com/cloudweav/cloudweav/pkg/util"
+	indexeresutil "github.com/cloudweav/cloudweav/pkg/util/indexeres"
+)
+
+const (
+	PVCByDataSourceVolumeSnapshotIndex = "cloudweavhci.io/pvc-by-data-source-volume-snapshot"
+	PodByNodeNameIndex                 = "cloudweavhci.io/pod-by-nodename"
+	PodByPVCIndex                      = "cloudweavhci.io/pod-by-pvc"
+	VolumeByNodeIndex                  = "cloudweavhci.io/volume-by-node"
+	VMBackupBySourceVMUIDIndex         = "cloudweavhci.io/vmbackup-by-source-vm-uid"
+	VMBackupBySourceVMNameIndex        = "cloudweavhci.io/vmbackup-by-source-vm-name"
+	VMTemplateVersionByImageIDIndex    = "cloudweavhci.io/vmtemplateversion-by-image-id"
+	VolumeSnapshotBySourcePVCIndex     = "cloudweavhci.io/volumesnapshot-by-source-pvc"
+)
+
+func Setup(ctx context.Context, _ *server.Server, _ *server.Controllers, _ config.Options) error {
+	scaled := config.ScaledWithContext(ctx)
+	management := scaled.Management
+
+	pvcInformer := management.CoreFactory.Core().V1().PersistentVolumeClaim().Cache()
+	pvcInformer.AddIndexer(PVCByDataSourceVolumeSnapshotIndex, pvcByDataSourceVolumeSnapshot)
+
+	podInformer := management.CoreFactory.Core().V1().Pod().Cache()
+	podInformer.AddIndexer(PodByNodeNameIndex, PodByNodeName)
+	podInformer.AddIndexer(PodByPVCIndex, PodByPVC)
+	podInformer.AddIndexer(indexeresutil.PodByVMNameIndex, indexeresutil.PodByVMName)
+
+	volumeInformer := management.LonghornFactory.Longhorn().V1beta2().Volume().Cache()
+	volumeInformer.AddIndexer(VolumeByNodeIndex, VolumeByNodeName)
+
+	volumeSnapshotInformer := management.SnapshotFactory.Snapshot().V1().VolumeSnapshot().Cache()
+	volumeSnapshotInformer.AddIndexer(VolumeSnapshotBySourcePVCIndex, volumeSnapshotBySourcePVC)
+
+	vmBackupInformer := management.CloudweavFactory.Cloudweavhci().V1beta1().VirtualMachineBackup().Cache()
+	vmBackupInformer.AddIndexer(VMBackupBySourceVMNameIndex, VMBackupBySourceVMName)
+	vmBackupInformer.AddIndexer(VMBackupBySourceVMUIDIndex, VMBackupBySourceVMUID)
+
+	vmTemplateVersionInformer := management.CloudweavFactory.Cloudweavhci().V1beta1().VirtualMachineTemplateVersion().Cache()
+	vmTemplateVersionInformer.AddIndexer(VMTemplateVersionByImageIDIndex, VMTemplateVersionByImageID)
+
+	vmInformer := management.VirtFactory.Kubevirt().V1().VirtualMachine().Cache()
+	vmInformer.AddIndexer(indexeresutil.VMByPVCIndex, indexeresutil.VMByPVC)
+
+	scInformer := management.StorageFactory.Storage().V1().StorageClass().Cache()
+	scInformer.AddIndexer(indexeresutil.StorageClassBySecretIndex, indexeresutil.StorageClassBySecret)
+	return nil
+}
+
+func PodByNodeName(obj *corev1.Pod) ([]string, error) {
+	return []string{obj.Spec.NodeName}, nil
+}
+
+func PodByPVC(obj *corev1.Pod) ([]string, error) {
+	pvcNames := []string{}
+	for _, volume := range obj.Spec.Volumes {
+		if volume.PersistentVolumeClaim != nil {
+			pvcNames = append(pvcNames, fmt.Sprintf("%s/%s", obj.Namespace, volume.PersistentVolumeClaim.ClaimName))
+		}
+	}
+	return pvcNames, nil
+}
+
+func pvcByDataSourceVolumeSnapshot(obj *corev1.PersistentVolumeClaim) ([]string, error) {
+	if obj.Spec.DataSource == nil || obj.Spec.DataSource.Kind != "VolumeSnapshot" {
+		return []string{}, nil
+	}
+	return []string{fmt.Sprintf("%s/%s", obj.Namespace, obj.Spec.DataSource.Name)}, nil
+}
+
+func VMBackupBySourceVMUID(obj *cloudweavv1.VirtualMachineBackup) ([]string, error) {
+	if obj.Status == nil || obj.Status.SourceUID == nil {
+		return []string{}, nil
+	}
+	return []string{string(*obj.Status.SourceUID)}, nil
+}
+
+func VMBackupBySourceVMName(obj *cloudweavv1.VirtualMachineBackup) ([]string, error) {
+	return []string{obj.Spec.Source.Name}, nil
+}
+
+func VMTemplateVersionByImageID(obj *cloudweavv1.VirtualMachineTemplateVersion) ([]string, error) {
+	volumeClaimTemplateStr, ok := obj.Spec.VM.ObjectMeta.Annotations[util.AnnotationVolumeClaimTemplates]
+	if !ok || volumeClaimTemplateStr == "" {
+		return []string{}, nil
+	}
+
+	var volumeClaimTemplates []corev1.PersistentVolumeClaim
+	if err := json.Unmarshal([]byte(volumeClaimTemplateStr), &volumeClaimTemplates); err != nil {
+		return []string{}, fmt.Errorf("can't unmarshal %s, err: %w", util.AnnotationVolumeClaimTemplates, err)
+	}
+
+	imageIDs := []string{}
+	for _, volumeClaimTemplate := range volumeClaimTemplates {
+		imageID, ok := volumeClaimTemplate.Annotations[util.AnnotationImageID]
+		if !ok || imageID == "" {
+			continue
+		}
+		imageIDs = append(imageIDs, imageID)
+	}
+	return imageIDs, nil
+}
+
+func volumeSnapshotBySourcePVC(obj *snapshotv1.VolumeSnapshot) ([]string, error) {
+	if obj.Spec.Source.PersistentVolumeClaimName == nil {
+		return []string{}, nil
+	}
+	return []string{fmt.Sprintf("%s/%s", obj.Namespace, *obj.Spec.Source.PersistentVolumeClaimName)}, nil
+}
+
+func VolumeByNodeName(obj *lhv1beta2.Volume) ([]string, error) {
+	return []string{obj.Spec.NodeID}, nil
+}

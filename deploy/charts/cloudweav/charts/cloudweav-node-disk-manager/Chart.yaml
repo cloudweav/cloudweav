@@ -1,0 +1,8 @@
+apiVersion: v2
+appVersion: v0.7.7
+description: A Helm chart for Cloudweav Node Disk Manager
+maintainers:
+- name: cloudweav
+name: cloudweav-node-disk-manager
+type: application
+version: 0.7.7

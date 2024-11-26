@@ -1,0 +1,12 @@
+apiVersion: v2
+name: cloudweav-crd
+version: 0.0.0-dev
+appVersion: 0.1.x
+description: Helm chart for deploying Cloudweav CRDs.
+icon: https://cloudweav.github.io/images/logo_horizontal.svg
+keywords:
+  - virtualization
+  - HCI
+home: https://github.com/cloudweav/cloudweav
+sources:
+  - https://github.com/cloudweav/cloudweav

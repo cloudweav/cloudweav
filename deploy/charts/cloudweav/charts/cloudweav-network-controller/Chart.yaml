@@ -1,0 +1,8 @@
+apiVersion: v2
+appVersion: v0.5.1
+description: A Helm chart for Cloudweav Network Controller
+maintainers:
+- name: cloudweav
+name: cloudweav-network-controller
+type: application
+version: 0.5.1

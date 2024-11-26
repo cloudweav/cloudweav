@@ -1,0 +1,106 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cloudweav-network-controller-manager.labels" . | nindent 4 }}
+  {{- if .Values.manager.replicas }}
+  # The annotation does not support 0 replicas.
+  annotations:
+    management.cattle.io/scale-available: "{{ .Values.manager.replicas }}"
+  {{- end }}
+  name: {{ include "cloudweav-network-controller.name" . }}-manager
+spec:
+  {{- if not .Values.manager.replicas }}
+  # Use this field instead of the scale-available annotation when it is 0 replicas.
+  replicas: {{ .Values.manager.replicas }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "cloudweav-network-controller-manager.selectorLabels" . | nindent 6 }}
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        {{- include "cloudweav-network-controller-manager.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "cloudweav-network-controller.name" . }}
+      hostNetwork: true
+      containers:
+        - name: cloudweav-network-manager
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+          - name: NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          command:
+            - cloudweav-network-controller
+          args:
+            - manager
+            {{- if .Values.vipEnabled}}
+            - --enable-vip-controller
+            {{- end }}
+            - --helper-image={{ printf "%s:%s" .Values.helper.image.repository (.Values.helper.image.tag | default .Chart.AppVersion) }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            capabilities:
+              add:
+                - NET_RAW
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      affinity:
+        {{- with .Values.manager.nodeAffinity }}
+        nodeAffinity:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        {{- with .Values.manager.podAntiAffinity }}
+        podAntiAffinity:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "cloudweav-network-webhook.labels" . | nindent 4 }}
+  {{- if .Values.webhook.replicas }}
+  # The annotation does not support 0 replicas.
+  annotations:
+    management.cattle.io/scale-available: "{{ .Values.webhook.replicas }}"
+  {{- end }}
+  name: cloudweav-network-webhook
+spec:
+  {{- if not .Values.webhook.replicas }}
+  # Use this field instead of the scale-available annotation when it is 0 replicas.
+  replicas: {{ .Values.webhook.replicas }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "cloudweav-network-webhook.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "cloudweav-network-webhook.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: cloudweav-network-webhook
+      containers:
+        - name: cloudweav-network-webhook
+          image: "{{ .Values.webhook.image.repository }}:{{ .Values.webhook.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.webhook.image.pullPolicy }}
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          command:
+            - cloudweav-network-webhook
+          resources:
+            {{- toYaml .Values.webhook.resources | nindent 12 }}

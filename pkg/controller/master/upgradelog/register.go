@@ -1,0 +1,77 @@
+package upgradelog
+
+import (
+	"context"
+
+	"github.com/cloudweav/cloudweav/pkg/config"
+)
+
+const (
+	upgradeLogControllerName    = "cloudweav-upgradelog-controller"
+	clusterFlowControllerName   = "cloudweav-upgradelog-clusterflow-controller"
+	clusterOutputControllerName = "cloudweav-upgradelog-clusteroutput-controller"
+	daemonSetControllerName     = "cloudweav-upgradelog-daemonset-controller"
+	deploymentControllerName    = "cloudweav-upgradelog-deployment-controller"
+	jobControllerName           = "cloudweav-upgradelog-job-controller"
+	loggingControllerName       = "cloudweav-upgradelog-logging-controller"
+	statefulSetControllerName   = "cloudweav-upgradelog-statefulset-controller"
+	managedChartControllerName  = "cloudweav-upgradelog-managedchart-controller"
+	pvcControllerName           = "cloudweav-upgradelog-pvc-controller"
+	upgradeControllerName       = "cloudweav-upgradelog-upgrade-controller"
+)
+
+func Register(ctx context.Context, management *config.Management, options config.Options) error {
+	upgradeLogController := management.CloudweavFactory.Cloudweavhci().V1beta1().UpgradeLog()
+	addonController := management.CloudweavFactory.Cloudweavhci().V1beta1().Addon()
+	appController := management.CatalogFactory.Catalog().V1().App()
+	clusterFlowController := management.LoggingFactory.Logging().V1beta1().ClusterFlow()
+	clusterOutputController := management.LoggingFactory.Logging().V1beta1().ClusterOutput()
+	daemonSetController := management.AppsFactory.Apps().V1().DaemonSet()
+	deploymentController := management.AppsFactory.Apps().V1().Deployment()
+	jobController := management.BatchFactory.Batch().V1().Job()
+	loggingController := management.LoggingFactory.Logging().V1beta1().Logging()
+	managedChartController := management.RancherManagementFactory.Management().V3().ManagedChart()
+	pvcController := management.CoreFactory.Core().V1().PersistentVolumeClaim()
+	serviceController := management.CoreFactory.Core().V1().Service()
+	statefulSetController := management.AppsFactory.Apps().V1().StatefulSet()
+	upgradeController := management.CloudweavFactory.Cloudweavhci().V1beta1().Upgrade()
+
+	handler := &handler{
+		ctx:                 ctx,
+		namespace:           options.Namespace,
+		addonCache:          addonController.Cache(),
+		appCache:            appController.Cache(),
+		clusterFlowClient:   clusterFlowController,
+		clusterOutputClient: clusterOutputController,
+		daemonSetClient:     daemonSetController,
+		daemonSetCache:      daemonSetController.Cache(),
+		deploymentClient:    deploymentController,
+		jobClient:           jobController,
+		jobCache:            jobController.Cache(),
+		loggingClient:       loggingController,
+		managedChartClient:  managedChartController,
+		managedChartCache:   managedChartController.Cache(),
+		pvcClient:           pvcController,
+		serviceClient:       serviceController,
+		statefulSetClient:   statefulSetController,
+		statefulSetCache:    statefulSetController.Cache(),
+		upgradeClient:       upgradeController,
+		upgradeCache:        upgradeController.Cache(),
+		upgradeLogClient:    upgradeLogController,
+		upgradeLogCache:     upgradeLogController.Cache(),
+	}
+
+	upgradeLogController.OnChange(ctx, upgradeLogControllerName, handler.OnUpgradeLogChange)
+	upgradeLogController.OnRemove(ctx, upgradeLogControllerName, handler.OnUpgradeLogRemove)
+	clusterFlowController.OnChange(ctx, clusterFlowControllerName, handler.OnClusterFlowChange)
+	clusterOutputController.OnChange(ctx, clusterOutputControllerName, handler.OnClusterOutputChange)
+	daemonSetController.OnChange(ctx, daemonSetControllerName, handler.OnDaemonSetChange)
+	deploymentController.OnChange(ctx, deploymentControllerName, handler.OnDeploymentChange)
+	jobController.OnChange(ctx, jobControllerName, handler.OnJobChange)
+	statefulSetController.OnChange(ctx, statefulSetControllerName, handler.OnStatefulSetChange)
+	managedChartController.OnChange(ctx, managedChartControllerName, handler.OnManagedChartChange)
+	pvcController.OnChange(ctx, pvcControllerName, handler.OnPvcChange)
+	upgradeController.OnChange(ctx, upgradeControllerName, handler.OnUpgradeChange)
+
+	return nil
+}

@@ -1,0 +1,39 @@
+dependencies:
+- name: kubevirt-operator
+  repository: file://dependency_charts/kubevirt-operator
+  version: 0.2.1
+- name: kubevirt
+  repository: file://dependency_charts/kubevirt
+  version: 0.1.0
+- name: cloudweav-network-controller
+  repository: https://charts.cloudweavhci.io
+  version: 0.5.1
+- name: cloudweav-networkfs-manager
+  repository: https://charts.cloudweavhci.io
+  version: 0.1.0
+- name: cloudweav-node-disk-manager
+  repository: https://charts.cloudweavhci.io
+  version: 0.7.7
+- name: csi-snapshotter
+  repository: file://dependency_charts/csi-snapshotter
+  version: 0.2.0
+- name: longhorn
+  repository: https://charts.longhorn.io
+  version: 1.7.2
+- name: kube-vip
+  repository: https://kube-vip.github.io/helm-charts
+  version: 0.6.1
+- name: cloudweav-load-balancer
+  repository: https://charts.cloudweavhci.io
+  version: 0.4.0
+- name: whereabouts
+  repository: file://dependency_charts/whereabouts
+  version: 0.1.1
+- name: cloudweav-node-manager
+  repository: https://charts.cloudweavhci.io
+  version: 0.3.1
+- name: snapshot-validation-webhook
+  repository: file://dependency_charts/snapshot-validation-webhook
+  version: 0.2.0
+digest: sha256:29195bfeab365b94ebf38b193026ccebde3242236e111d4fef628a51898d7f74
+generated: "2024-10-31T23:11:46.376659421+08:00"

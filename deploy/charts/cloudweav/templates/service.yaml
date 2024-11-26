@@ -1,0 +1,51 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cloudweav
+  annotations:
+  labels:
+{{ include "cloudweav.labels" . | indent 4 }}
+    app.kubernetes.io/name: cloudweav
+    app.kubernetes.io/component: apiserver
+{{- if .Values.service.cloudweav.asClusterService }}
+    kubernetes.io/cluster-service: "true"
+{{- end }}
+spec:
+  sessionAffinity: {{ .Values.service.cloudweav.sessionAffinity }}
+  type: {{ .Values.service.cloudweav.type }}
+  selector:
+{{ include "cloudweav.labels" . | indent 4 }}
+    app.kubernetes.io/name: cloudweav
+    app.kubernetes.io/component: apiserver
+  ports:
+{{- if gt (.Values.service.cloudweav.httpsPort | int) 0 }}
+    - name: https
+      port: {{ .Values.service.cloudweav.httpsPort }}
+{{- if and (eq .Values.service.cloudweav.type "NodePort") (gt (.Values.service.cloudweav.httpsNodePort | int) 0) }}
+      nodePort: {{ .Values.service.cloudweav.httpsNodePort }}
+{{- end }}
+      targetPort: https
+{{- end }}
+{{- if gt (.Values.service.cloudweav.httpPort | int) 0 }}
+    - name: http
+      port: {{ .Values.service.cloudweav.httpPort }}
+{{- if and (eq .Values.service.cloudweav.type "NodePort") (gt (.Values.service.cloudweav.httpNodePort | int) 0) }}
+      nodePort: {{ .Values.service.cloudweav.httpNodePort }}
+{{- end }}
+      targetPort: http
+{{- end }}
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: cloudweav-webhook
+spec:
+  ports:
+  - name: https
+    port: 443
+    targetPort: {{ .Values.webhook.httpsPort }}
+    protocol: TCP
+  selector:
+    app.kubernetes.io/name: cloudweav
+    app.kubernetes.io/component: webhook-server
